@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>患者症状搜索系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding: 2rem;
+        }
+        .main-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            overflow: hidden;
+            min-height: calc(100vh - 4rem);
+        }
+        .statistics-section {
+            background-color: #f8f9fa;
+            padding: 2rem;
+            border-right: 1px solid #e9ecef;
+            height: 100%;
+        }
+        .search-section {
+            padding: 2rem;
+            background-color: white;
+        }
+        .result-card {
+            margin-bottom: 1rem;
+            border-left: 4px solid #0d6efd;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+        .error-message {
+            color: #dc3545;
+            margin-top: 1rem;
+        }
+        .diagnosis-time {
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+        .statistics-card {
+            margin-bottom: 2rem;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 1rem;
+        }
+        .total-patients {
+            font-size: 3.5rem;
+            font-weight: bold;
+            color: #0d6efd;
+            margin: 1rem 0;
+        }
+        .chart-title {
+            text-align: center;
+            margin-bottom: 1rem;
+            color: #495057;
+            font-size: 1.2rem;
+        }
+        .chart-card {
+            transition: all 0.3s ease;
+            margin-bottom: 1.5rem;
+            background-color: white;
+        }
+        .chart-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .card {
+            border-radius: 10px;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .card-body {
+            padding: 1.5rem;
+        }
+        .search-result-count {
+            font-size: 1.1rem;
+            color: #6c757d;
+            margin-top: 0.5rem;
+        }
+        .statistics-header {
+            color: #2c3e50;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+        }
+        .page-title {
+            color: #2c3e50;
+            margin-bottom: 2rem;
+            font-weight: 600;
+            text-align: center;
+        }
+        .search-form {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="main-container">
+            <div class="row g-0">
+                <!-- 左侧搜索区域 -->
+                <div class="col-md-6 search-section">
+                    <h1 class="page-title">患者症状搜索</h1>
+                    
+                    <form id="searchForm" class="search-form mb-4">
+                        <div class="mb-3">
+                            <label for="query" class="form-label">症状描述</label>
+                            <input type="text" class="form-control" id="query" name="query" 
+                                   placeholder="请输入症状描述，例如：发热咳嗽" required>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="min_age" class="form-label">最小年龄</label>
+                                <input type="number" class="form-control" id="min_age" name="min_age" 
+                                       value="60" min="0" max="120">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="max_distance" class="form-label">相似度阈值</label>
+                                <input type="number" class="form-control" id="max_distance" name="max_distance" 
+                                       value="0.8" step="0.1" min="0" max="1">
+                            </div>
+                        </div>
+                        
+                        <div class="text-center mt-4">
+                            <button type="submit" class="btn btn-primary">搜索</button>
+                            <button type="button" class="btn btn-secondary ms-2" id="resetButton">重置</button>
+                        </div>
+                    </form>
+                    
+                    <div class="loading">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">正在搜索中...</p>
+                    </div>
+                    
+                    <div id="errorMessage" class="error-message"></div>
+                    
+                    <div id="results">
+                        <div id="searchInfo" class="mb-3">
+                            <p>找到 <span id="totalResults">{{ initial_records.total_results }}</span> 条记录</p>
+                            <p id="searchTimeInfo" style="display: none;">搜索用时：<span id="searchTime"></span>秒</p>
+                        </div>
+                        
+                        <div id="resultList">
+                            {% for result in initial_records.results %}
+                            <div class="card result-card mb-3">
+                                <div class="card-body">
+                                    <h5 class="card-title">患者ID: {{ result.patient_id }}</h5>
+                                    <p class="card-text">
+                                        <strong>年龄：</strong>{{ result.age }}岁<br>
+                                        <strong>诊断：</strong>{{ result.diagnosis }}<br>
+                                        <strong>诊断时间：</strong><span class="diagnosis-time">{{ result.diagnosis_time }}</span>
+                                    </p>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右侧统计区域 -->
+                <div class="col-md-6 statistics-section">
+                    <h3 class="statistics-header">诊断统计信息</h3>
+                    <!-- 总患者数卡片 -->
+                    <div class="card chart-card mb-4">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">总诊断记录数</h5>
+                            <p class="total-patients" id="totalPatientsDisplay">{{ stats.total_patients }}</p>
+                            
+                        </div>
+                    </div>
+                    <!-- 年龄分布图表卡片 -->
+                    <div class="card chart-card">
+                        <div class="card-body">
+                            <h5 class="card-title chart-title">年龄分布统计</h5>
+                            <div class="chart-container">
+                                <canvas id="ageDistributionChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 就诊趋势图表卡片 -->
+                    <div class="card chart-card">
+                        <div class="card-body">
+                            <h5 class="card-title chart-title">就诊数量趋势</h5>
+                            <div class="chart-container">
+                                <canvas id="diagnosisTrendChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ageChart = null;
+        let trendChart = null;
+        
+        // 初始化图表
+        function initializeCharts(data = null) {
+            initializeAgeChart(data);
+            initializeTrendChart(data);
+        }
+        
+        // 初始化年龄分布图表
+        function initializeAgeChart(data = null) {
+            const ctx = document.getElementById('ageDistributionChart').getContext('2d');
+            
+            // 如果没有提供数据，使用初始统计数据
+            const chartData = data || {
+                labels: Object.keys({{ stats.age_distribution|tojson }}),
+                values: Object.values({{ stats.age_distribution|tojson }})
+            };
+            
+            const config = {
+                type: 'bar',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{
+                        label: '患者数量',
+                        data: chartData.values,
+                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(context) {
+                                    return `年龄段: ${context[0].label}`;
+                                },
+                                label: function(context) {
+                                    return `患者数量: ${context.raw}人`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1,
+                                precision: 0
+                            },
+                            title: {
+                                display: true,
+                                text: '患者数量',
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            title: {
+                                display: true,
+                                text: '年龄段',
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+            
+            // 如果图表已存在，销毁它
+            if (ageChart) {
+                ageChart.destroy();
+            }
+            
+            // 创建新图表
+            ageChart = new Chart(ctx, config);
+        }
+        
+        // 初始化就诊趋势图表
+        function initializeTrendChart(data = null) {
+            const ctx = document.getElementById('diagnosisTrendChart').getContext('2d');
+            
+            // 获取诊断日期数据
+            const diagnosisDates = {{ stats.diagnosis_dates|tojson }};
+            const dates = Object.keys(diagnosisDates).sort();
+            const counts = dates.map(date => diagnosisDates[date]);
+            
+            const config = {
+                type: 'bar',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: '就诊人数',
+                        data: counts,
+                        backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(context) {
+                                    return `日期: ${context[0].label}`;
+                                },
+                                label: function(context) {
+                                    return `就诊人数: ${context.raw}人`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: '日期'
+                            },
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            },
+                            grid: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: '就诊数量'
+                            },
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1,
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            };
+            
+            // 如果图表已存在，销毁它
+            if (trendChart) {
+                trendChart.destroy();
+            }
+            
+            // 创建新图表
+            trendChart = new Chart(ctx, config);
+        }
+        
+        // 更新图表数据
+        function updateCharts(searchResults) {
+            // 更新总记录数显示
+            updateTotalPatientsCount(searchResults);
+            
+            // 更新年龄分布图
+            updateAgeDistributionChart(searchResults);
+            
+            // 更新就诊趋势图
+            updateTrendChart(searchResults);
+        }
+        
+        function updateTotalPatientsCount(searchResults) {
+            const totalPatientsDisplay = document.getElementById('totalPatientsDisplay');
+            
+            if (searchResults && searchResults.length > 0) {
+                // 显示搜索结果数量
+                totalPatientsDisplay.textContent = searchResults.length;
+            } else {
+                // 显示总记录数
+                totalPatientsDisplay.textContent = '{{ stats.total_patients }}';
+            }
+        }
+        
+        function updateAgeDistributionChart(searchResults) {
+            // 如果图表已存在，销毁它
+            if (ageChart) {
+                ageChart.destroy();
+            }
+            
+            // 统计年龄分布
+            const ageDistribution = {
+                "0-20": 0,
+                "21-40": 0,
+                "41-60": 0,
+                "61-80": 0,
+                "81+": 0
+            };
+            
+            searchResults.forEach(patient => {
+                const age = patient.age;
+                if (age <= 20) ageDistribution["0-20"]++;
+                else if (age <= 40) ageDistribution["21-40"]++;
+                else if (age <= 60) ageDistribution["41-60"]++;
+                else if (age <= 80) ageDistribution["61-80"]++;
+                else ageDistribution["81+"]++;
+            });
+            
+            // 创建新图表
+            const ctx = document.getElementById('ageDistributionChart').getContext('2d');
+            ageChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(ageDistribution),
+                    datasets: [{
+                        label: '患者数量',
+                        data: Object.values(ageDistribution),
+                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(context) {
+                                    return `年龄段: ${context[0].label}`;
+                                },
+                                label: function(context) {
+                                    return `患者数量: ${context.raw}人`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1,
+                                precision: 0
+                            },
+                            title: {
+                                display: true,
+                                text: '患者数量',
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            title: {
+                                display: true,
+                                text: '年龄段',
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateTrendChart(searchResults) {
+            // 如果图表已存在，先销毁
+            if (trendChart) {
+                trendChart.destroy();
+            }
+            
+            // 统计每天的就诊数量
+            const dailyCounts = {};
+            searchResults.forEach(result => {
+                const date = result.diagnosis_time.split(' ')[0]; // 只取日期部分
+                dailyCounts[date] = (dailyCounts[date] || 0) + 1;
+            });
+            
+            // 转换为图表数据格式
+            const dates = Object.keys(dailyCounts).sort();
+            const counts = dates.map(date => dailyCounts[date]);
+            
+            // 创建趋势图
+            const ctx = document.getElementById('diagnosisTrendChart').getContext('2d');
+            trendChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: '每日就诊数量',
+                        data: counts,
+                        backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '就诊趋势'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(context) {
+                                    return `日期: ${context[0].label}`;
+                                },
+                                label: function(context) {
+                                    return `就诊人数: ${context.raw}人`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: '日期'
+                            },
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            },
+                            grid: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: '就诊数量'
+                            },
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1,
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 初始化图表
+        initializeCharts();
+        
+        // 修改重置按钮处理函数
+        document.getElementById('resetButton').addEventListener('click', function() {
+            // 重置总记录数显示
+            document.getElementById('totalPatientsDisplay').textContent = '{{ stats.total_patients }}';
+            
+            // 重置其他内容
+            initializeCharts();
+            document.getElementById('searchForm').reset();
+            document.getElementById('resultList').innerHTML = '';
+            document.getElementById('searchInfo').style.display = 'none';
+            document.getElementById('errorMessage').textContent = '';
+        });
+
+        // 修改搜索表单提交处理
+        document.getElementById('searchForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // 显示加载动画
+            document.querySelector('.loading').style.display = 'block';
+            document.getElementById('errorMessage').textContent = '';
+            document.getElementById('resultList').innerHTML = '';
+            document.getElementById('searchTimeInfo').style.display = 'none';
+            
+            // 获取表单数据
+            const formData = new FormData(this);
+            
+            // 发送搜索请求
+            fetch('/search', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // 隐藏加载动画
+                document.querySelector('.loading').style.display = 'none';
+                
+                if (data.error) {
+                    document.getElementById('errorMessage').textContent = data.error;
+                    return;
+                }
+                
+                // 更新总记录数显示
+                updateTotalPatientsCount(data.results);
+                
+                // 显示搜索信息
+                document.getElementById('totalResults').textContent = data.total_results;
+                
+                // 只有在有查询文本时才显示搜索时间
+                if (data.query) {
+                    document.getElementById('searchTimeInfo').style.display = 'block';
+                    document.getElementById('searchTime').textContent = data.search_time;
+                } else {
+                    document.getElementById('searchTimeInfo').style.display = 'none';
+                }
+                
+                // 更新图表
+                updateCharts(data.results);
+                
+                // 显示结果
+                const resultList = document.getElementById('resultList');
+                data.results.forEach(result => {
+                    const card = document.createElement('div');
+                    card.className = 'card result-card mb-3';
+                    card.innerHTML = `
+                        <div class="card-body">
+                            <h5 class="card-title">患者ID: ${result.patient_id}</h5>
+                            <p class="card-text">
+                                <strong>年龄：</strong>${result.age}岁<br>
+                                <strong>诊断：</strong>${result.diagnosis}<br>
+                                <strong>诊断时间：</strong><span class="diagnosis-time">${result.diagnosis_time}</span>
+                                ${result.similarity ? `<br><strong>相似度：</strong>${result.similarity.toFixed(4)}` : ''}
+                            </p>
+                        </div>
+                    `;
+                    resultList.appendChild(card);
+                });
+            })
+            .catch(error => {
+                document.querySelector('.loading').style.display = 'none';
+                document.getElementById('errorMessage').textContent = '搜索过程中发生错误：' + error;
+            });
+        });
+    </script>
+</body>
+</html> 
