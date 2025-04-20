@@ -11,6 +11,19 @@
 - 批量病例数据生成
 - 高性能向量检索
 
+### screenshots
+
+![](doc/screenshot/total.png)
+
+![](doc/screenshot/search_1.png)
+
+![](doc/screenshot/search_2.png)
+
+![](doc/screenshot/search_3.png)
+
+![](doc/screenshot/generate.png)
+
+
 ## 技术栈
 
 - 后端：Python, Flask
